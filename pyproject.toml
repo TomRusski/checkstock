@@ -1,0 +1,28 @@
+[project]
+name = "checkstock"
+version = "1.0.0"
+description = "CheckStock — прототип учёта остатков по складам фулфилмента (FBS/FBO)"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "slow: тесты, которые заметно дольше остальных (конкурентность, случайные сценарии)",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated:UserWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["B008"]  # Depends() в дефолтах аргументов — идиома FastAPI
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/templates/*", "app/static/*"]

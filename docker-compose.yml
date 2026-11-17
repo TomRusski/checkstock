@@ -1,0 +1,48 @@
+services:
+  db:
+    # Тот же образ, что и локальный PG17 с pgvector: расширение доступно,
+    # но в CheckStock векторы не нужны — не добавляем неиспользуемых зависимостей.
+    image: pgvector/pgvector:pg17
+    container_name: checkstock-db
+    environment:
+      POSTGRES_USER: checkstock
+      POSTGRES_PASSWORD: checkstock
+      POSTGRES_DB: checkstock
+    ports:
+      # Наружу отдаём DB_PORT. Дефолт 15432 — заведомо не пересекается с обычными
+      # PostgreSQL (5432/5433). Занят? Допиши в .env строку DB_PORT=<свободный>.
+      - "${DB_PORT:-15432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U checkstock -d checkstock"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    container_name: checkstock-app
+    environment:
+      DATABASE_URL: postgresql+psycopg://checkstock:checkstock@db:5432/checkstock
+      TEST_DATABASE_URL: postgresql+psycopg://checkstock:checkstock@db:5432/checkstock_test
+      SEED_ON_START: "true"
+    ports:
+      # Слева — порт на хосте (APP_PORT), справа — порт ВНУТРИ контейнера.
+      # Внутри контейнера приложение всегда слушает 8000, это не меняется.
+      - "${APP_PORT:-18080}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # Код монтируется: правишь в VS Code — uvicorn --reload подхватывает.
+      - ./app:/app/app
+      - ./tests:/app/tests
+      - ./migrations:/app/migrations
+      - ./scripts:/app/scripts
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+volumes:
+  pgdata:

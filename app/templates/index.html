@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CheckStock — где сейчас товар</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>📦</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">📦</span>
+    <div>
+      <h1>CheckStock</h1>
+      <p class="muted" id="shop-name">Где сейчас товар</p>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <button id="invariant-badge" class="badge badge-muted" data-action="show-invariants">Проверка учёта…</button>
+    <button class="btn btn-ghost" data-action="refresh">Обновить</button>
+    <button class="btn btn-ghost" data-action="reset-demo">Сбросить демо-данные</button>
+    <a class="btn btn-ghost" href="/docs" target="_blank" rel="noreferrer">API /docs</a>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button class="tab active" data-tab="stock">Остатки</button>
+  <button class="tab" data-tab="warehouses">Склады</button>
+  <button class="tab" data-tab="ops">Операции</button>
+  <button class="tab" data-tab="history">История</button>
+</nav>
+
+<main>
+  <!-- ОСТАТКИ -->
+  <section class="panel active" id="panel-stock">
+    <div class="toolbar">
+      <input type="search" id="stock-search" placeholder="Поиск по артикулу или названию…">
+      <label class="check"><input type="checkbox" id="show-archived"> показывать архивные ФФ</label>
+      <span class="muted small">Нажми на артикул — покажу, где именно числится товар</span>
+    </div>
+    <div class="cards" id="stock-cards"></div>
+    <div class="table-wrap">
+      <table class="grid" id="stock-table"></table>
+    </div>
+    <p class="muted small">
+      <b>Физически</b> = доступно + резерв FBS. Резерв товар со склада не уводит: он лишь блокирует его
+      до отправки или отмены. «В пути» — три отдельных потока: между ФФ, на склад маркетплейса (FBO),
+      к клиенту (FBS).
+    </p>
+  </section>
+
+  <!-- СКЛАДЫ -->
+  <section class="panel" id="panel-warehouses">
+    <div class="card">
+      <h3>Новый склад фулфилмента</h3>
+      <form class="inline-form" id="form-warehouse">
+        <input name="name" placeholder="Например, Запад" required maxlength="120">
+        <button class="btn btn-primary" type="submit">Добавить ФФ</button>
+      </form>
+    </div>
+    <div class="table-wrap">
+      <table class="grid" id="warehouses-table"></table>
+    </div>
+    <p class="muted small">
+      Удаление ФФ — это архивирование: остатки и история сохраняются, склад остаётся виден
+      в остатках и в «где числится товар». Новые документы на архивный ФФ создать нельзя,
+      а уже начатые можно довести до конца.
+    </p>
+  </section>
+
+  <!-- ОПЕРАЦИИ -->
+  <section class="panel" id="panel-ops">
+    <div class="forms">
+      <form class="card" id="form-receipt">
+        <h3>Приход от поставщика</h3>
+        <label>Склад получателя<select name="to_warehouse_id" data-warehouses="active" required></select></label>
+        <div class="lines" data-lines></div>
+        <button class="btn btn-ghost btn-sm" type="button" data-action="add-line">+ артикул</button>
+        <label>Основание<input name="reference" placeholder="Накладная №…"></label>
+        <label class="check"><input type="checkbox" name="auto_post" checked> сразу провести</label>
+        <button class="btn btn-primary" type="submit">Оформить приход</button>
+      </form>
+
+      <form class="card" id="form-transfer">
+        <h3>Перемещение между ФФ</h3>
+        <label>Откуда<select name="from_warehouse_id" data-warehouses="active" required></select></label>
+        <label>Куда<select name="to_warehouse_id" data-warehouses="active" required></select></label>
+        <div class="lines" data-lines></div>
+        <button class="btn btn-ghost btn-sm" type="button" data-action="add-line">+ артикул</button>
+        <label class="check"><input type="checkbox" name="quick"> отправить и принять сразу</label>
+        <button class="btn btn-primary" type="submit">Создать перемещение</button>
+      </form>
+
+      <form class="card" id="form-fbs">
+        <h3>FBS-заказ клиента (резерв)</h3>
+        <label>Склад отгрузки<select name="from_warehouse_id" data-warehouses="active" required></select></label>
+        <label>Номер заказа<input name="reference" placeholder="WB-1001"></label>
+        <div class="lines" data-lines></div>
+        <button class="btn btn-ghost btn-sm" type="button" data-action="add-line">+ артикул</button>
+        <label class="check"><input type="checkbox" name="allow_split"> разрешить разбить по складам</label>
+        <button class="btn btn-primary" type="submit">Зарезервировать</button>
+      </form>
+
+      <form class="card" id="form-fbo">
+        <h3>FBO-поставка на маркетплейс</h3>
+        <label>Склад отгрузки<select name="from_warehouse_id" data-warehouses="active" required></select></label>
+        <label>Номер поставки<input name="reference" placeholder="FBO-77"></label>
+        <div class="lines" data-lines></div>
+        <button class="btn btn-ghost btn-sm" type="button" data-action="add-line">+ артикул</button>
+        <button class="btn btn-primary" type="submit">Создать поставку</button>
+      </form>
+    </div>
+
+    <div class="toolbar">
+      <h3 class="grow">Документы</h3>
+      <select id="docs-kind"><option value="">все типы</option></select>
+      <select id="docs-status"><option value="">все статусы</option></select>
+      <select id="docs-warehouse"><option value="">все склады</option></select>
+      <input type="search" id="docs-sku" placeholder="артикул">
+    </div>
+    <div class="table-wrap">
+      <table class="grid" id="documents-table"></table>
+    </div>
+    <p class="muted small">
+      Кнопка <b>«Повтор ×2»</b> отправляет одно и то же подтверждение дважды с одинаковым
+      Idempotency-Key: второе списание не происходит. Без ключа повтор получает 409 —
+      конечный автомат не даёт провести операцию повторно.
+    </p>
+  </section>
+
+  <!-- ИСТОРИЯ -->
+  <section class="panel" id="panel-history">
+    <div class="toolbar">
+      <select id="hist-kind"><option value="">все типы</option></select>
+      <select id="hist-warehouse"><option value="">все склады</option></select>
+      <input type="search" id="hist-sku" placeholder="артикул">
+      <select id="hist-limit">
+        <option value="50">50 событий</option>
+        <option value="100" selected>100 событий</option>
+        <option value="300">300 событий</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table class="grid" id="history-table"></table>
+    </div>
+  </section>
+</main>
+
+<div class="modal-backdrop" id="modal" hidden>
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modal-title"></h3>
+      <button class="btn btn-ghost btn-sm" data-action="close-modal">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

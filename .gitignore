@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Тесты и линтеры
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.ruff_cache/
+
+# Локальные секреты и настройки
+.env
+
+# Артефакты
+*.log
+.DS_Store
+.idea/
+.vscode/
