@@ -1,5 +1,7 @@
 # CheckStock — «где сейчас товар»
 
+[![CI](https://github.com/TomRusski/checkstock/actions/workflows/ci.yml/badge.svg)](https://github.com/TomRusski/checkstock/actions/workflows/ci.yml)
+
 Прототип учёта остатков по складам фулфилмента (ФФ): сколько физически лежит, сколько доступно,
 сколько заблокировано резервом FBS, что едет между ФФ, на склад маркетплейса (FBO) и к клиенту (FBS).
 
